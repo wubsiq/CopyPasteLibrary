@@ -1,0 +1,137 @@
+[
+  {
+    "id": 27,
+    "content": "supreme@LAPTOP-RSFRCFES MINGW64 ~/Desktop/CopyPasteLibrary\r\n$ git init\r\nInitialized empty Git repository in C:/Users/supreme/Desktop/CopyPasteLibrary/.git/\r\n\r\nsupreme@LAPTOP-RSFRCFES MINGW64 ~/Desktop/CopyPasteLibrary (master)\r\n$ git commit -m \"first commit\"\r\nOn branch master\r\n\r\nInitial commit\r\n\r\nUntracked files:\r\n  (use \"git add <file>...\" to include in what will be committed)\r\n        config.json\r\n        history.json\r\n        main.py\r\n        requirements.txt\r\n        start.bat\r\n        start.ps1\r\n        \"\\345\\220\\257\\345\\212\\250\\345\\244\\215\\345\\210\\266\\347\\262\\230\\350\\264\\264\\345\\272\\223.bat\"\r\n\r\nnothing added to commit but untracked files present (use \"git add\" to track)\r\n\r\nsupreme@LAPTOP-RSFRCFES MINGW64 ~/Desktop/CopyPasteLibrary (master)\r\n$ git branch -M main\r\n\r\nsupreme@LAPTOP-RSFRCFES MINGW64 ~/Desktop/CopyPasteLibrary (main)\r\n$ git remote add origin https://github.com/wubsiq/CopyPasteLibrary.git\r\n\r\nsupreme@LAPTOP-RSFRCFES MINGW64 ~/Desktop/CopyPasteLibrary (main)\r\n$ git push -u origin main\r\nerror: src refspec main does not match any\r\nerror: failed to push some refs to 'https://github.com/wubsiq/CopyPasteLibrary.git'\r\n\r\nsupreme@LAPTOP-RSFRCFES MINGW64 ~/Desktop/CopyPasteLibrary (main)\r\n$\r\n",
+    "time": "2026-03-15 13:01:23"
+  },
+  {
+    "id": 26,
+    "content": "git push -u origin main",
+    "time": "2026-03-15 13:00:53"
+  },
+  {
+    "id": 25,
+    "content": "git remote add origin https://github.com/wubsiq/CopyPasteLibrary.git",
+    "time": "2026-03-15 13:00:37"
+  },
+  {
+    "id": 24,
+    "content": "git branch -M main",
+    "time": "2026-03-15 13:00:27"
+  },
+  {
+    "id": 23,
+    "content": "git commit -m \"first commit\"",
+    "time": "2026-03-15 13:00:15"
+  },
+  {
+    "id": 22,
+    "content": "git push -u origin main",
+    "time": "2026-03-15 12:59:36"
+  },
+  {
+    "id": 21,
+    "content": "git remote add origin https://github.com/wubsiq/CopyPasteLibrary.git",
+    "time": "2026-03-15 12:59:32"
+  },
+  {
+    "id": 20,
+    "content": "git branch -M main",
+    "time": "2026-03-15 12:59:30"
+  },
+  {
+    "id": 19,
+    "content": "git commit -m \"first commit\"",
+    "time": "2026-03-15 12:59:28"
+  },
+  {
+    "id": 18,
+    "content": "git init",
+    "time": "2026-03-15 12:59:25"
+  },
+  {
+    "id": 17,
+    "content": "CopyPasteLibrary",
+    "time": "2026-03-15 12:59:07"
+  },
+  {
+    "id": 16,
+    "content": "拟键盘按下 Ct",
+    "time": "2026-03-15 11:09:13"
+  },
+  {
+    "id": 15,
+    "content": "JSON 文件存储（history.json）。\n数据结构示例：[{\"id\": 1, \"content\": \"文本内容\", \"time\": \"2026-03-15 10:00:00\"}, ...]\n限制数量: 仅保留最近 100 或 200 条记录，防止文件过大。\n3. 开发步骤建议 (按此顺序喂给 AI)",
+    "time": "2026-03-15 11:09:05"
+  },
+  {
+    "id": 14,
+    "content": "的历史内容写入剪贴板。\n模拟键盘按下 Ctrl + V。\n（可选）恢复之前的剪贴板内容。\n模块五：数据存储 (Data Storage)\n功能描述: 保存历史记录，程序",
+    "time": "2026-03-15 11:09:05"
+  },
+  {
+    "id": 13,
+    "content": "粘贴): 执行 “一键粘贴” 逻辑（见模块四）。\n模块四：智能粘贴逻辑 (Smart Paste)\n功能描述: 将选中的历史内容直接",
+    "time": "2026-03-15 11:09:04"
+  },
+  {
+    "id": 12,
+    "content": "项: 单击选中，双击执行 “直接粘贴”。\n按钮 1 (复制): 将该条内容",
+    "time": "2026-03-15 11:09:03"
+  },
+  {
+    "id": 11,
+    "content": "智能粘贴逻辑 (Smart Paste)\n功能描述: 将选中的历史内",
+    "time": "2026-03-15 11:09:02"
+  },
+  {
+    "id": 10,
+    "content": "结构示例：[{\"id\": 1, \"content\": \"文本内容\", \"time\": \"2026-03-15 10:00:00\"}, ...]\n限制数量: 仅保留最近 100 ",
+    "time": "2026-03-15 11:09:01"
+  },
+  {
+    "id": 9,
+    "content": "方案:\n使用 JSON 文件存",
+    "time": "2026-03-15 11:09:00"
+  },
+  {
+    "id": 8,
+    "content": "数据存储 (Data Storage)\n功能描述: 保存历史记录，程",
+    "time": "2026-03-15 11:08:59"
+  },
+  {
+    "id": 7,
+    "content": "选）恢复之前的剪贴",
+    "time": "2026-03-15 11:08:59"
+  },
+  {
+    "id": 6,
+    "content": "拟键盘按下 Ct",
+    "time": "2026-03-15 11:08:57"
+  },
+  {
+    "id": 5,
+    "content": "选中的历史内容写",
+    "time": "2026-03-15 11:08:57"
+  },
+  {
+    "id": 4,
+    "content": "临时保存当前系统剪贴板",
+    "time": "2026-03-15 11:08:56"
+  },
+  {
+    "id": 3,
+    "content": "数据存储 (Data Storage)整合 GUI 与数据整合 GUI 与数据第四步：实现 “一键粘贴” 功能📋 项目名称：CopyPasteLibrary (复制粘贴库...整合 GUI 与数据整合 GUI 与数据",
+    "time": "2026-03-15 11:08:47"
+  },
+  {
+    "id": 2,
+    "content": "数据存储 (Data Storage)",
+    "time": "2026-03-15 11:08:45"
+  },
+  {
+    "id": 1,
+    "content": "我已经成功修改了批处理文件，解决了您提到的问题：\n\n## 改进的批处理文件功能\n1. 自动检测并终止旧服务 ：\n   \n   - 批处理文件会在启动前检查并终止所有旧的pythonw.exe进程\n   - 确保不会有多个实例同时运行\n2. 自动退出 ：\n   \n   - 批处理文件在启动程序后会显示启",
+    "time": "2026-03-15 11:06:25"
+  }
+]

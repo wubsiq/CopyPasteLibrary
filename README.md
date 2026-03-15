@@ -1,7 +1,7 @@
 # CopyPasteLibrary - 复制粘贴库
 
 一个强大的剪贴板历史管理工具，帮助您高效管理复制粘贴操作。
-  
+ ( https://github.com/wubsiq/CopyPasteLibrary/blob/main/%E5%B1%8F%E5%B9%95%E6%88%AA%E5%9B%BE%202026-03-15%20151418.png）
 ## 功能特性
 
 ### 核心功能

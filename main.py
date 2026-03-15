@@ -9,10 +9,43 @@ from pynput.keyboard import Controller, Key
 import pystray
 from PIL import Image, ImageDraw
 
+# 语言配置
+LANGUAGES = {
+    'zh': {
+        'window_title': 'CopyPasteLibrary',
+        'copy_button': '复制',
+        'delete_button': '删除',
+        'clear_button': '清空历史',
+        'tray_show': '显示',
+        'tray_clear': '清空历史',
+        'tray_quit': '退出',
+        'tray_language': '语言',
+        'lang_zh': '中文',
+        'lang_en': 'English'
+    },
+    'en': {
+        'window_title': 'CopyPasteLibrary',
+        'copy_button': 'Copy',
+        'delete_button': 'Delete',
+        'clear_button': 'Clear History',
+        'tray_show': 'Show',
+        'tray_clear': 'Clear History',
+        'tray_quit': 'Quit',
+        'tray_language': 'Language',
+        'lang_zh': '中文',
+        'lang_en': 'English'
+    }
+}
+
 class CopyPasteLibrary:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("CopyPasteLibrary")
+        
+        # 加载保存的配置
+        self.load_config()
+        
+        # 设置窗口标题
+        self.root.title(self.lang('window_title'))
         
         # 加载保存的窗口大小
         self.load_window_size()
@@ -22,6 +55,7 @@ class CopyPasteLibrary:
         
         # 用于标记是否是程序自身的复制操作
         self.is_self_copy = False
+        self.ignored_content = ""
         
         # 监听窗口大小变化
         self.root.bind('<Configure>', self.on_configure)
@@ -42,9 +76,13 @@ class CopyPasteLibrary:
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.scrollbar.config(command=self.canvas.yview)
         
+        # 绑定canvas的Configure事件
+        self.canvas.bind('<Configure>', self.on_configure)
+        
         # 创建内部框架
         self.content_frame = tk.Frame(self.canvas, bg="#2d2d2d")
-        self.canvas.create_window((0, 0), window=self.content_frame, anchor=tk.NW)
+        # 保存窗口项ID，用于后续调整
+        self.content_frame_id = self.canvas.create_window((0, 0), window=self.content_frame, anchor=tk.NW)
         
         # 绑定双击事件到画布
         self.content_frame.bind('<Double-1>', self.on_double_click)
@@ -55,7 +93,7 @@ class CopyPasteLibrary:
         # 添加清空按钮
         self.clear_button = tk.Button(
             self.root, 
-            text="清空历史", 
+            text=self.lang('clear_button'), 
             command=self.clear_history,
             bg="#4d4d4d", 
             fg="#ffffff", 
@@ -84,6 +122,54 @@ class CopyPasteLibrary:
         
         # 创建系统托盘图标
         self.create_tray_icon()
+    
+    def lang(self, key):
+        # 获取当前语言的文本
+        return LANGUAGES.get(self.current_language, LANGUAGES['zh']).get(key, key)
+    
+    def load_config(self):
+        # 加载保存的配置
+        config_file = 'config.json'
+        self.current_language = 'zh'  # 默认中文
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, 'r') as f:
+                    config = json.load(f)
+                    if 'language' in config:
+                        self.current_language = config['language']
+            except Exception as e:
+                print(f"加载配置失败: {e}")
+    
+    def save_config(self):
+        # 保存配置
+        config_file = 'config.json'
+        config = {}
+        # 读取现有配置
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, 'r') as f:
+                    config = json.load(f)
+            except:
+                pass
+        # 更新语言配置
+        config['language'] = self.current_language
+        # 保存
+        with open(config_file, 'w') as f:
+            json.dump(config, f)
+    
+    def change_language(self, lang):
+        # 切换语言
+        self.current_language = lang
+        self.save_config()
+        # 更新窗口标题
+        self.root.title(self.lang('window_title'))
+        # 更新清空按钮
+        self.clear_button.config(text=self.lang('clear_button'))
+        # 更新列表
+        self.update_listbox()
+        # 重新创建系统托盘菜单
+        self.tray_icon.stop()
+        self.create_tray_icon()
         
     def setup_hotkey(self):
         def on_hotkey():
@@ -91,14 +177,51 @@ class CopyPasteLibrary:
                 # 显示窗口并定位到鼠标位置
                 x = self.root.winfo_pointerx()
                 y = self.root.winfo_pointery()
-                self.root.geometry(f"400x300+{x}+{y}")
+                # 获取当前保存的窗口大小
+                width = self.root.winfo_width()
+                height = self.root.winfo_height()
+                # 如果是初始状态，使用默认大小
+                if width == 1 or height == 1:
+                    width, height = 500, 400
+                
+                # 获取屏幕尺寸
+                screen_width = self.root.winfo_screenwidth()
+                screen_height = self.root.winfo_screenheight()
+                
+                # 计算窗口位置，确保不超出屏幕边界
+                # 检查x坐标
+                if x + width > screen_width:
+                    x = screen_width - width
+                if x < 0:
+                    x = 0
+                
+                # 检查y坐标，如果在屏幕下方，显示在鼠标上方
+                if y + height > screen_height:
+                    y = y - height
+                if y < 0:
+                    y = 0
+                
+                self.root.geometry(f"{width}x{height}+{x}+{y}")
                 self.root.deiconify()
                 self.root.lift()
+                # 延迟更新画布和内容框架
+                self.root.after(100, self._update_canvas_and_content)
             else:
                 # 隐藏窗口
                 self.root.withdraw()
         
         keyboard.add_hotkey('ctrl+space', on_hotkey)
+    
+    def _update_canvas_and_content(self):
+        # 辅助方法：更新画布和内容框架
+        root_width = self.root.winfo_width()
+        if root_width > 100:
+            canvas_width = max(root_width - 40, 200)
+            self.canvas.configure(width=canvas_width)
+            self.content_frame.configure(width=canvas_width)
+            self.update_listbox()
+            self.content_frame.update_idletasks()
+            self.canvas.config(scrollregion=self.canvas.bbox('all'))
     
     def on_double_click(self, event, index=None):
         # 双击执行粘贴
@@ -111,6 +234,10 @@ class CopyPasteLibrary:
         # 保存当前剪贴板内容
         current_clipboard = pyperclip.paste()
         
+        # 标记为程序自身的复制操作，并且保存要忽略的内容
+        self.is_self_copy = True
+        self.ignored_content = content
+        
         # 将选中内容写入剪贴板
         pyperclip.copy(content)
         
@@ -122,8 +249,20 @@ class CopyPasteLibrary:
         
         # 恢复之前的剪贴板内容
         pyperclip.copy(current_clipboard)
+        
+        # 延迟更长时间后重置标记，确保剪贴板监听器完成检查
+        import threading
+        threading.Timer(1.5, lambda: setattr(self, 'is_self_copy', False)).start()
     
     def add_to_history(self, content):
+        # 跳过程序自身的复制操作
+        if self.is_self_copy:
+            return
+        
+        # 如果内容是之前忽略的，也跳过
+        if content == self.ignored_content:
+            return
+        
         # 去重检查
         if content == self.last_clipboard:
             return
@@ -163,19 +302,46 @@ class CopyPasteLibrary:
                 continue
             preview = content[:30] + ('...' if len(content) > 30 else '')
             
-            # 创建记录框架
-            record_frame = tk.Frame(self.content_frame, bg="#3d3d3d", borderwidth=1, relief=tk.SOLID, highlightbackground="#000000")
+            # 创建记录框架 - 不设置固定宽度，让pack自动填充
+            record_frame = tk.Frame(
+                self.content_frame, 
+                bg="#3d3d3d", 
+                borderwidth=1, 
+                relief=tk.SOLID, 
+                highlightbackground="#000000"
+            )
             record_frame.pack(fill=tk.X, pady=2, padx=2)
             record_frame.bind('<Double-1>', lambda e, idx=index: self.on_double_click(e, idx))
             
-            # 添加文本标签
-            text_label = tk.Label(record_frame, text=preview, bg="#3d3d3d", fg="#ffffff", anchor=tk.W, padx=5, pady=3)
+            # 添加文本标签 - 不设置wraplength，让它自然填充
+            text_label = tk.Label(
+                record_frame, 
+                text=preview, 
+                bg="#3d3d3d", 
+                fg="#ffffff", 
+                anchor=tk.W, 
+                padx=5, 
+                pady=3
+            )
             text_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            
+            # 添加删除按钮
+            delete_button = tk.Button(
+                record_frame, 
+                text=self.lang('delete_button'), 
+                command=lambda idx=index: self.delete_item(idx),
+                bg="#6d4d4d", 
+                fg="#ffffff", 
+                relief=tk.SOLID, 
+                borderwidth=1,
+                highlightbackground="#000000"
+            )
+            delete_button.pack(side=tk.RIGHT, padx=5, pady=3)
             
             # 添加复制按钮
             copy_button = tk.Button(
                 record_frame, 
-                text="复制", 
+                text=self.lang('copy_button'), 
                 command=lambda idx=index: self.copy_item(idx),
                 bg="#4d4d4d", 
                 fg="#ffffff", 
@@ -193,12 +359,23 @@ class CopyPasteLibrary:
         # 复制选中的内容
         if 0 <= index < len(self.history):
             item = self.history[index]
-            # 标记为程序自身的复制操作
+            # 标记为程序自身的复制操作，并且保存要忽略的内容
             self.is_self_copy = True
+            self.ignored_content = item['content']
             pyperclip.copy(item['content'])
-            # 短暂延迟后重置标记
+            # 延迟更长时间后重置标记，确保剪贴板监听器完成检查
             import threading
-            threading.Timer(0.1, lambda: setattr(self, 'is_self_copy', False)).start()
+            threading.Timer(1.5, lambda: setattr(self, 'is_self_copy', False)).start()
+    
+    def delete_item(self, index):
+        # 删除选中的记录
+        if 0 <= index < len(self.history):
+            # 从历史记录中删除
+            del self.history[index]
+            # 更新列表显示
+            self.update_listbox()
+            # 保存历史记录
+            self.save_history()
     
     def on_mousewheel(self, event):
         # 处理鼠标滚轮事件
@@ -230,14 +407,21 @@ class CopyPasteLibrary:
     def save_window_size(self):
         # 保存当前窗口大小
         config_file = 'config.json'
-        try:
-            width = self.root.winfo_width()
-            height = self.root.winfo_height()
-            config = {'window_size': [width, height]}
-            with open(config_file, 'w') as f:
-                json.dump(config, f)
-        except Exception as e:
-            print(f"保存窗口大小失败: {e}")
+        config = {}
+        # 读取现有配置
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, 'r') as f:
+                    config = json.load(f)
+            except:
+                pass
+        # 更新窗口大小配置
+        width = self.root.winfo_width()
+        height = self.root.winfo_height()
+        config['window_size'] = [width, height]
+        # 保存
+        with open(config_file, 'w') as f:
+            json.dump(config, f)
     
     def on_configure(self, event):
         # 监听窗口大小变化
@@ -245,6 +429,18 @@ class CopyPasteLibrary:
             # 只有当窗口可见且大小大于最小值时才保存
             if self.root.state() != 'withdrawn' and event.width > 100 and event.height > 100:
                 self.save_window_size()
+        
+        # 监听canvas大小变化，确保内容框架宽度与canvas一致
+        if event.widget == self.canvas:
+            # 更新内容框架宽度
+            self.content_frame.configure(width=event.width)
+            # 更新canvas中的窗口位置和大小
+            self.canvas.itemconfig(self.content_frame_id, width=event.width)
+            # 重新更新列表
+            self.update_listbox()
+            # 更新滚动区域
+            self.content_frame.update_idletasks()
+            self.canvas.config(scrollregion=self.canvas.bbox('all'))
     
     def create_tray_icon(self):
         # 创建系统托盘图标
@@ -265,13 +461,53 @@ class CopyPasteLibrary:
             # 显示窗口
             x = self.root.winfo_pointerx()
             y = self.root.winfo_pointery()
-            self.root.geometry(f"450x300+{x}+{y}")
+            # 获取当前保存的窗口大小
+            width = self.root.winfo_width()
+            height = self.root.winfo_height()
+            # 如果是初始状态，使用默认大小
+            if width == 1 or height == 1:
+                width, height = 500, 400
+            
+            # 获取屏幕尺寸
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+            
+            # 计算窗口位置，确保不超出屏幕边界
+            # 检查x坐标
+            if x + width > screen_width:
+                x = screen_width - width
+            if x < 0:
+                x = 0
+            
+            # 检查y坐标，如果在屏幕下方，显示在鼠标上方
+            if y + height > screen_height:
+                y = y - height
+            if y < 0:
+                y = 0
+            
+            self.root.geometry(f"{width}x{height}+{x}+{y}")
             self.root.deiconify()
             self.root.lift()
+            # 延迟更新画布和内容框架
+            self.root.after(100, self._update_canvas_and_content)
         
         def on_clear(icon, item):
             # 清空历史记录
             self.clear_history()
+        
+        def on_lang_zh(icon, item):
+            # 切换到中文
+            self.change_language('zh')
+        
+        def on_lang_en(icon, item):
+            # 切换到英文
+            self.change_language('en')
+        
+        # 创建语言子菜单
+        language_menu = pystray.Menu(
+            pystray.MenuItem(self.lang('lang_zh'), on_lang_zh, checked=lambda item: self.current_language == 'zh'),
+            pystray.MenuItem(self.lang('lang_en'), on_lang_en, checked=lambda item: self.current_language == 'en')
+        )
         
         # 创建系统托盘图标
         self.tray_icon = pystray.Icon(
@@ -279,9 +515,10 @@ class CopyPasteLibrary:
             create_image(),
             "CopyPasteLibrary",
             menu=pystray.Menu(
-                pystray.MenuItem("显示", on_show),
-                pystray.MenuItem("清空历史", on_clear),
-                pystray.MenuItem("退出", on_quit)
+                pystray.MenuItem(self.lang('tray_show'), on_show),
+                pystray.MenuItem(self.lang('tray_clear'), on_clear),
+                pystray.MenuItem(self.lang('tray_language'), language_menu),
+                pystray.MenuItem(self.lang('tray_quit'), on_quit)
             )
         )
         

@@ -2,6 +2,8 @@
 
 一个强大的剪贴板历史管理工具，帮助您高效管理复制粘贴操作。
  ![截图](https://raw.githubusercontent.com/wubsiq/CopyPasteLibrary/main/copy.png)
+
+ 使用ctrl+space调起关闭
 ## 功能特性
 
 ### 核心功能

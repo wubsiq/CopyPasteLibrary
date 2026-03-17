@@ -7,7 +7,10 @@ import json
 import os
 from pynput.keyboard import Controller, Key
 import pystray
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageTk
+import win32clipboard
+from io import BytesIO
+import base64
 
 # 语言配置
 LANGUAGES = {
@@ -21,7 +24,8 @@ LANGUAGES = {
         'tray_quit': '退出',
         'tray_language': '语言',
         'lang_zh': '中文',
-        'lang_en': 'English'
+        'lang_en': 'English',
+        'image_preview': '[图片]'
     },
     'en': {
         'window_title': 'CopyPasteLibrary',
@@ -33,7 +37,8 @@ LANGUAGES = {
         'tray_quit': 'Quit',
         'tray_language': 'Language',
         'lang_zh': '中文',
-        'lang_en': 'English'
+        'lang_en': 'English',
+        'image_preview': '[Image]'
     }
 }
 
@@ -106,9 +111,14 @@ class CopyPasteLibrary:
         # 历史记录
         self.history = []
         self.last_clipboard = ""
+        self.last_image_hash = ""
         
         # 键盘控制器
         self.keyboard = Controller()
+        
+        # 创建图片保存目录
+        self.images_dir = os.path.join(os.path.dirname(__file__), 'images')
+        os.makedirs(self.images_dir, exist_ok=True)
         
         # 加载历史记录
         self.load_history()
@@ -122,6 +132,67 @@ class CopyPasteLibrary:
         
         # 创建系统托盘图标
         self.create_tray_icon()
+    
+    def get_image_from_clipboard(self):
+        # 从剪贴板获取图片
+        try:
+            from PIL import ImageGrab
+            image = ImageGrab.grabclipboard()
+            if image:
+                # 检查是否是列表（有时候grabclipboard返回列表）
+                if isinstance(image, list) and len(image) > 0:
+                    image = image[0]
+                # 确保返回的是PIL Image对象
+                if hasattr(image, 'save'):
+                    return image
+            return None
+        except Exception as e:
+            print(f"获取剪贴板图片失败: {e}")
+            return None
+    
+    def save_image(self, image):
+        # 保存图片到文件
+        import hashlib
+        # 生成图片哈希值
+        img_byte_arr = BytesIO()
+        image.save(img_byte_arr, format='PNG')
+        img_hash = hashlib.md5(img_byte_arr.getvalue()).hexdigest()
+        
+        # 检查是否已存在相同图片
+        if img_hash == self.last_image_hash:
+            return None, img_hash
+        
+        # 保存图片
+        filename = f"{img_hash}.png"
+        filepath = os.path.join(self.images_dir, filename)
+        image.save(filepath, 'PNG')
+        
+        return filename, img_hash
+    
+    def copy_image_to_clipboard(self, image_path):
+        # 将图片复制到剪贴板
+        try:
+            image = Image.open(image_path)
+            output = BytesIO()
+            image.convert('RGB').save(output, 'BMP')
+            data = output.getvalue()[14:]  # 跳过BMP文件头
+            output.close()
+            
+            win32clipboard.OpenClipboard()
+            win32clipboard.EmptyClipboard()
+            win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
+            win32clipboard.CloseClipboard()
+            return True
+        except Exception as e:
+            print(f"复制图片到剪贴板失败: {e}")
+            return False
+    
+    def get_image_hash(self, image):
+        # 计算图片哈希值
+        import hashlib
+        img_byte_arr = BytesIO()
+        image.save(img_byte_arr, format='PNG')
+        return hashlib.md5(img_byte_arr.getvalue()).hexdigest()
     
     def lang(self, key):
         # 获取当前语言的文本
@@ -227,59 +298,100 @@ class CopyPasteLibrary:
         # 双击执行粘贴
         if index is not None and 0 <= index < len(self.history):
             item = self.history[index]
-            self.smart_paste(item['content'])
+            self.smart_paste(item)
     
-    def smart_paste(self, content):
+    def smart_paste(self, item):
         # 智能粘贴逻辑
-        # 保存当前剪贴板内容
-        current_clipboard = pyperclip.paste()
-        
-        # 标记为程序自身的复制操作，并且保存要忽略的内容
         self.is_self_copy = True
-        self.ignored_content = content
         
-        # 将选中内容写入剪贴板
-        pyperclip.copy(content)
-        
-        # 模拟Ctrl+V
-        self.keyboard.press(Key.ctrl)
-        self.keyboard.press('v')
-        self.keyboard.release('v')
-        self.keyboard.release(Key.ctrl)
-        
-        # 恢复之前的剪贴板内容
-        pyperclip.copy(current_clipboard)
+        if item.get('is_image'):
+            # 图片粘贴
+            img_path = os.path.join(self.images_dir, item['content'])
+            if os.path.exists(img_path):
+                self.copy_image_to_clipboard(img_path)
+                # 模拟Ctrl+V
+                self.keyboard.press(Key.ctrl)
+                self.keyboard.press('v')
+                self.keyboard.release('v')
+                self.keyboard.release(Key.ctrl)
+        else:
+            # 文本粘贴
+            # 保存当前剪贴板内容
+            current_clipboard = pyperclip.paste()
+            content = item['content']
+            self.ignored_content = content
+            
+            # 将选中内容写入剪贴板
+            pyperclip.copy(content)
+            
+            # 模拟Ctrl+V
+            self.keyboard.press(Key.ctrl)
+            self.keyboard.press('v')
+            self.keyboard.release('v')
+            self.keyboard.release(Key.ctrl)
+            
+            # 恢复之前的剪贴板内容
+            pyperclip.copy(current_clipboard)
         
         # 延迟更长时间后重置标记，确保剪贴板监听器完成检查
         import threading
         threading.Timer(1.5, lambda: setattr(self, 'is_self_copy', False)).start()
     
-    def add_to_history(self, content):
+    def add_to_history(self, content, is_image=False):
         # 跳过程序自身的复制操作
         if self.is_self_copy:
             return
         
-        # 如果内容是之前忽略的，也跳过
-        if content == self.ignored_content:
-            return
-        
-        # 去重检查
-        if content == self.last_clipboard:
-            return
-        
-        # 创建新记录
-        new_item = {
-            'id': len(self.history) + 1,
-            'content': content,
-            'time': time.strftime('%Y-%m-%d %H:%M:%S')
-        }
+        if is_image:
+            # 处理图片
+            img_filename, img_hash = self.save_image(content)
+            if not img_filename:
+                return
+            
+            # 检查图片去重
+            if img_hash == self.last_image_hash:
+                return
+            
+            # 创建新记录
+            new_item = {
+                'id': len(self.history) + 1,
+                'content': img_filename,
+                'is_image': True,
+                'time': time.strftime('%Y-%m-%d %H:%M:%S')
+            }
+            
+            self.last_image_hash = img_hash
+        else:
+            # 处理文本
+            # 如果内容是之前忽略的，也跳过
+            if content == self.ignored_content:
+                return
+            
+            # 去重检查
+            if content == self.last_clipboard:
+                return
+            
+            # 创建新记录
+            new_item = {
+                'id': len(self.history) + 1,
+                'content': content,
+                'is_image': False,
+                'time': time.strftime('%Y-%m-%d %H:%M:%S')
+            }
+            
+            self.last_clipboard = content
         
         # 添加到历史记录
         self.history.insert(0, new_item)
-        self.last_clipboard = content
         
         # 限制历史记录数量
         if len(self.history) > 100:
+            # 清理旧图片文件
+            old_item = self.history[-1]
+            if old_item.get('is_image'):
+                old_img_path = os.path.join(self.images_dir, old_item['content'])
+                if os.path.exists(old_img_path):
+                    os.remove(old_img_path)
             self.history = self.history[:100]
         
         # 更新Listbox
@@ -295,13 +407,6 @@ class CopyPasteLibrary:
         
         # 添加历史记录到内容框架
         for index, item in enumerate(self.history):
-            # 只显示前30个字符，去掉不需要的字段
-            content = item['content']
-            # 检查是否包含不需要的字段
-            if '📋 项目名称：CopyPasteLibrary (复制粘贴库' in content:
-                continue
-            preview = content[:30] + ('...' if len(content) > 30 else '')
-            
             # 创建记录框架 - 不设置固定宽度，让pack自动填充
             record_frame = tk.Frame(
                 self.content_frame, 
@@ -313,17 +418,84 @@ class CopyPasteLibrary:
             record_frame.pack(fill=tk.X, pady=2, padx=2)
             record_frame.bind('<Double-1>', lambda e, idx=index: self.on_double_click(e, idx))
             
-            # 添加文本标签 - 不设置wraplength，让它自然填充
-            text_label = tk.Label(
-                record_frame, 
-                text=preview, 
-                bg="#3d3d3d", 
-                fg="#ffffff", 
-                anchor=tk.W, 
-                padx=5, 
-                pady=3
-            )
-            text_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            if item.get('is_image'):
+                # 显示图片缩略图
+                img_path = os.path.join(self.images_dir, item['content'])
+                if os.path.exists(img_path):
+                    try:
+                        # 加载并调整图片大小
+                        image = Image.open(img_path)
+                        # 计算缩略图大小
+                        thumb_width, thumb_height = 100, 60
+                        image.thumbnail((thumb_width, thumb_height), Image.Resampling.LANCZOS)
+                        photo = ImageTk.PhotoImage(image)
+                        
+                        # 创建图片标签
+                        img_label = tk.Label(
+                            record_frame, 
+                            image=photo, 
+                            bg="#3d3d3d",
+                            padx=5,
+                            pady=3
+                        )
+                        img_label.image = photo  # 保持引用
+                        img_label.pack(side=tk.LEFT, padx=5)
+                        
+                        # 添加图片文本提示
+                        text_label = tk.Label(
+                            record_frame, 
+                            text=self.lang('image_preview'), 
+                            bg="#3d3d3d", 
+                            fg="#ffffff", 
+                            anchor=tk.W, 
+                            padx=5, 
+                            pady=3
+                        )
+                        text_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+                    except Exception as e:
+                        print(f"加载图片失败: {e}")
+                        # 显示错误提示
+                        text_label = tk.Label(
+                            record_frame, 
+                            text=self.lang('image_preview'), 
+                            bg="#3d3d3d", 
+                            fg="#ffffff", 
+                            anchor=tk.W, 
+                            padx=5, 
+                            pady=3
+                        )
+                        text_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+                else:
+                    # 图片文件不存在
+                    text_label = tk.Label(
+                        record_frame, 
+                        text=self.lang('image_preview'), 
+                        bg="#3d3d3d", 
+                        fg="#ffffff", 
+                        anchor=tk.W, 
+                        padx=5, 
+                        pady=3
+                    )
+                    text_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            else:
+                # 显示文本
+                content = item['content']
+                # 检查是否包含不需要的字段
+                if '📋 项目名称：CopyPasteLibrary (复制粘贴库' in content:
+                    continue
+                preview = content[:30] + ('...' if len(content) > 30 else '')
+                
+                # 添加文本标签 - 不设置wraplength，让它自然填充
+                text_label = tk.Label(
+                    record_frame, 
+                    text=preview, 
+                    bg="#3d3d3d", 
+                    fg="#ffffff", 
+                    anchor=tk.W, 
+                    padx=5, 
+                    pady=3
+                )
+                text_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
             
             # 添加删除按钮
             delete_button = tk.Button(
@@ -359,10 +531,19 @@ class CopyPasteLibrary:
         # 复制选中的内容
         if 0 <= index < len(self.history):
             item = self.history[index]
-            # 标记为程序自身的复制操作，并且保存要忽略的内容
+            # 标记为程序自身的复制操作
             self.is_self_copy = True
-            self.ignored_content = item['content']
-            pyperclip.copy(item['content'])
+            
+            if item.get('is_image'):
+                # 复制图片
+                img_path = os.path.join(self.images_dir, item['content'])
+                if os.path.exists(img_path):
+                    self.copy_image_to_clipboard(img_path)
+            else:
+                # 复制文本
+                self.ignored_content = item['content']
+                pyperclip.copy(item['content'])
+            
             # 延迟更长时间后重置标记，确保剪贴板监听器完成检查
             import threading
             threading.Timer(1.5, lambda: setattr(self, 'is_self_copy', False)).start()
@@ -370,6 +551,15 @@ class CopyPasteLibrary:
     def delete_item(self, index):
         # 删除选中的记录
         if 0 <= index < len(self.history):
+            item = self.history[index]
+            # 如果是图片，删除图片文件
+            if item.get('is_image'):
+                img_path = os.path.join(self.images_dir, item['content'])
+                if os.path.exists(img_path):
+                    try:
+                        os.remove(img_path)
+                    except Exception as e:
+                        print(f"删除图片文件失败: {e}")
             # 从历史记录中删除
             del self.history[index]
             # 更新列表显示
@@ -383,8 +573,18 @@ class CopyPasteLibrary:
     
     def clear_history(self):
         # 清空历史记录
+        # 删除所有图片文件
+        for item in self.history:
+            if item.get('is_image'):
+                img_path = os.path.join(self.images_dir, item['content'])
+                if os.path.exists(img_path):
+                    try:
+                        os.remove(img_path)
+                    except Exception as e:
+                        print(f"删除图片文件失败: {e}")
         self.history = []
         self.last_clipboard = ""
+        self.last_image_hash = ""
         self.update_listbox()
         self.save_history()
     
@@ -560,10 +760,16 @@ class ClipboardMonitor(threading.Thread):
     def run(self):
         while True:
             try:
-                # 检查剪贴板内容
-                current_clipboard = pyperclip.paste()
-                if current_clipboard and not self.app.is_self_copy:
-                    self.app.add_to_history(current_clipboard)
+                # 先检查是否有图片
+                if not self.app.is_self_copy:
+                    image = self.app.get_image_from_clipboard()
+                    if image:
+                        self.app.add_to_history(image, is_image=True)
+                    else:
+                        # 如果没有图片，检查文本
+                        current_clipboard = pyperclip.paste()
+                        if current_clipboard:
+                            self.app.add_to_history(current_clipboard, is_image=False)
             except Exception as e:
                 print(f"剪贴板监听错误: {e}")
             
